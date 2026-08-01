@@ -11,11 +11,34 @@ import { Textarea } from "@/components/ui/textarea";
 import { dosageForms, priceUnits } from "@/lib/validations/drug.validation";
 
 type PriceRow = { id: string; unit: (typeof priceUnits)[number]; customUnit: string; quantityPerUnit: string; sellingPrice: string; isPrimary: boolean };
-const newPrice = (): PriceRow => ({ id: crypto.randomUUID(), unit: "tablet", customUnit: "", quantityPerUnit: "1", sellingPrice: "", isPrimary: true });
+const newPrice = (id = crypto.randomUUID()): PriceRow => ({ id, unit: "tablet", customUnit: "", quantityPerUnit: "1", sellingPrice: "", isPrimary: true });
 const title = (value: string) => value.charAt(0).toUpperCase() + value.slice(1);
+export const drugCategories = [
+  "Allergy & antihistamines",
+  "Antibiotics",
+  "Antifungals",
+  "Antimalarials",
+  "Cardiovascular",
+  "Cold, cough & flu",
+  "Dermatology",
+  "Diabetes",
+  "Digestive health",
+  "Eye & ear care",
+  "Headache",
+  "Hormones & contraception",
+  "Mental health",
+  "Pain relief",
+  "Respiratory",
+  "Sexual health",
+  "Vitamins & supplements",
+  "Other",
+] as const;
+export const storeLocations = ["Top-right", "Top-left", "Bottom-right", "Bottom-left", "Showglass"] as const;
 
 export function DrugForm() {
-  const [prices, setPrices] = useState<PriceRow[]>([newPrice()]);
+  // The first row must have a deterministic ID because this Client Component is
+  // still pre-rendered on the server before React hydrates it in the browser.
+  const [prices, setPrices] = useState<PriceRow[]>([newPrice("initial-price")]);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -61,7 +84,7 @@ export function DrugForm() {
         <CardContent className="grid gap-5 md:grid-cols-2">
           <Field label="Brand name" htmlFor="name" required><Input id="name" name="name" placeholder="e.g. Panadol Extra" minLength={2} maxLength={150} required autoFocus /></Field>
           <Field label="Common or generic name" htmlFor="commonName"><Input id="commonName" name="commonName" placeholder="e.g. Paracetamol" maxLength={150} /></Field>
-          <Field label="Category" htmlFor="category" required><Input id="category" name="category" placeholder="e.g. Pain relief" minLength={2} maxLength={100} required /></Field>
+          <Field label="Category" htmlFor="category" required><Select id="category" name="category" defaultValue="" required><option value="" disabled>Select a category</option>{drugCategories.map((category) => <option key={category} value={category}>{category}</option>)}</Select></Field>
           <Field label="Dosage form" htmlFor="dosageForm" required><Select id="dosageForm" name="dosageForm" defaultValue="tablet" required>{dosageForms.map((form) => <option key={form} value={form}>{title(form)}</option>)}</Select></Field>
           <Field label="Strength" htmlFor="strength" hint="Include the unit, such as mg or mg/5ml."><Input id="strength" name="strength" placeholder="e.g. 500 mg" maxLength={100} /></Field>
           <Field label="Manufacturer" htmlFor="manufacturer"><Input id="manufacturer" name="manufacturer" placeholder="e.g. GSK" maxLength={150} /></Field>
@@ -84,7 +107,7 @@ export function DrugForm() {
       </Card>
       <Card>
         <CardHeader><CardTitle>Inventory</CardTitle><CardDescription>Set where the item is stored and its current stock level.</CardDescription></CardHeader>
-        <CardContent className="grid gap-5 md:grid-cols-2"><Field label="Storage location" htmlFor="location" required hint="Use a shelf, aisle, cabinet, or fridge label."><Input id="location" name="location" placeholder="e.g. Shelf A3" minLength={2} maxLength={150} required /></Field><Field label="Quantity in stock" htmlFor="quantity" required hint="Availability is set automatically from this value."><Input id="quantity" name="quantity" type="number" min="0" step="1" defaultValue="0" required /></Field></CardContent>
+        <CardContent className="grid gap-5 md:grid-cols-2"><Field label="Storage location" htmlFor="location" required><Select id="location" name="location" defaultValue="" required><option value="" disabled>Select a location</option>{storeLocations.map((location) => <option key={location} value={location}>{location}</option>)}</Select></Field><Field label="Quantity in stock" htmlFor="quantity" required hint="Availability is set automatically from this value."><Input id="quantity" name="quantity" type="number" min="0" step="1" defaultValue="0" required /></Field></CardContent>
       </Card>
       <div className="flex flex-col-reverse gap-3 pb-10 sm:flex-row sm:justify-end"><Button type="reset" variant="outline" onClick={() => { setPrices([newPrice()]); setMessage(null); }}>Clear form</Button><Button type="submit" className="min-w-36" disabled={submitting}>{submitting ? <><LoaderCircle className="animate-spin" /> Saving…</> : "Add drug"}</Button></div>
     </form>

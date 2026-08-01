@@ -4,7 +4,7 @@ import { DrugForm } from "./drug-form";
 
 const navigation = [
   { label: "Overview", href: "/admin", icon: LayoutDashboard },
-  { label: "Drugs", href: "/admin/drugs", icon: Pill, active: true },
+  { label: "Drugs", href: "/admin/drugs/manage", icon: Pill, active: true },
   { label: "Inventory", href: "/admin/inventory", icon: Boxes },
   { label: "Settings", href: "/admin/settings", icon: Settings },
 ];
@@ -24,7 +24,7 @@ export default function AddDrugPage() {
       <main className="min-w-0 flex-1 px-4 py-8 sm:px-6 lg:px-10">
         <div className="mx-auto max-w-5xl">
           <div className="mb-7">
-            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-1 text-sm text-slate-500"><Link href="/admin/drugs" className="hover:text-slate-900">Drugs</Link><ChevronRight className="size-4" /><span className="text-slate-700">Add new</span></nav>
+            <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-1 text-sm text-slate-500"><Link href="/admin/drugs/manage" className="hover:text-slate-900">Drugs</Link><ChevronRight className="size-4" /><span className="text-slate-700">Add new</span></nav>
             <div className="flex items-start gap-3"><span className="mt-1 hidden size-11 items-center justify-center rounded-xl border border-emerald-100 bg-emerald-50 text-emerald-700 sm:flex"><ClipboardPlus className="size-5" /></span><div><h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Add a new drug</h1><p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-500">Create a complete catalogue record with product details, pricing, and opening stock.</p></div></div>
           </div>
           <DrugForm />

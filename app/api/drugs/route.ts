@@ -1,6 +1,6 @@
 import { MongoServerError } from "mongodb";
 import { NextResponse } from "next/server";
-import { ZodError } from "zod";
+import { ZodError,z } from "zod";
 
 import { connectToDatabase } from "@/lib/mongodb";
 import DrugModel from "@/models/drug";

@@ -193,13 +193,15 @@ export async function PATCH(
  * deleting it.
  */
 export async function DELETE(
-  _request: Request,
+  request: Request,
   context: DrugRouteContext,
 ) {
   try {
     await connectToDatabase();
 
     const { drugId } = await context.params;
+    const permanentlyDelete =
+      new URL(request.url).searchParams.get("permanent") === "true";
 
     if (!mongoose.isValidObjectId(drugId)) {
       return NextResponse.json(
@@ -211,6 +213,24 @@ export async function DELETE(
           status: 400,
         },
       );
+    }
+
+    if (permanentlyDelete) {
+      const deletedDrug = await DrugModel.findOneAndDelete({
+        _id: drugId,
+      }).lean();
+
+      if (!deletedDrug) {
+        return NextResponse.json(
+          { success: false, message: "Drug not found." },
+          { status: 404 },
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Drug permanently deleted.",
+      });
     }
 
     const drug = await DrugModel.findOneAndUpdate(
