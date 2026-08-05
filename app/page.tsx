@@ -26,7 +26,7 @@ export default function Home() {
     async function search() {
       setLoading(true); setError("");
       try {
-        const response = await fetch(`/api/drugs?search=${encodeURIComponent(activeQuery)}&limit=10`, { signal: controller.signal });
+        const response = await fetch(`/api/drugs?search=${encodeURIComponent(activeQuery)}&limit=10`, { signal: controller.signal, cache: "no-store" });
         const payload = (await response.json()) as SearchResponse;
         if (!response.ok || !payload.data) throw new Error(payload.message || "Search is unavailable.");
         if (currentRequest === requestId.current) { setResults(payload.data); setTotal(payload.pagination?.total ?? payload.data.length); }

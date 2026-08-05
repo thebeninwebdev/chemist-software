@@ -1,0 +1,17 @@
+[semantic-search:error] {
+  requestId: '80714719-47c1-4c88-890d-ee372803ba6c',
+  stage: 'embedding-or-vector-search',
+  name: 'TypeError',
+  message: 'fetch failed',
+  stack: 'TypeError: fetch failed\n' +
+    '    at node:internal/deps/undici/undici:13510:13\n' +
+    '    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n' +
+    '    at async n$.embedContent (C:\\Users\\user\\Desktop\\projects\\chemist-software\\.next\\server\\chunks\\[root-of-the-server]__0f2iay0._.js:14:167745)\n' +
+    '    at async o (C:\\Users\\user\\Desktop\\projects\\chemist-software\\.next\\server\\chunks\\[root-of-the-server]__0fap0ze._.js:1:6116)\n' +
+    '    at async O (C:\\Users\\user\\Desktop\\projects\\chemist-software\\.next\\server\\chunks\\node_modules_next_dist_esm_build_templates_app-route_0gdaklh.js:1:3374)\n' +
+    '    at async rQ.do (C:\\Users\\user\\Desktop\\projects\\chemist-software\\node_modules\\next\\dist\\compiled\\next-server\\app-route-turbo.runtime.prod.js:5:21003)\n' +
+    '    at async rQ.handle (C:\\Users\\user\\Desktop\\projects\\chemist-software\\node_modules\\next\\dist\\compiled\\next-server\\app-route-turbo.runtime.prod.js:5:25858)\n' +
+    '    at async c (C:\\Users\\user\\Desktop\\projects\\chemist-software\\.next\\server\\chunks\\node_modules_next_dist_esm_build_templates_app-route_0gdaklh.js:1:10063)\n' +
+    '    at async rQ.handleResponse (C:\\Users\\user\\Desktop\\projects\\chemist-software\\node_modules\\next\\dist\\compiled\\next-server\\app-route-turbo.runtime.prod.js:1:120216)\n' +
+    '    at async o (C:\\Users\\user\\Desktop\\projects\\chemist-software\\.next\\server\\chunks\\node_modules_next_dist_esm_build_templates_app-route_0gdaklh.js:1:11104)'
+}

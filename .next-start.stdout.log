@@ -1,0 +1,19 @@
+
+> chemist-software@0.1.0 start
+> next start -p 3100
+
+▲ Next.js 16.2.12
+- Local:         http://localhost:3100
+- Network:       http://192.168.46.32:3100
+✓ Ready in 2.4s
+[semantic-search:start] {
+  requestId: '80714719-47c1-4c88-890d-ee372803ba6c',
+  queryLength: 15,
+  hasMongoUri: true,
+  hasGeminiApiKey: true
+}
+[semantic-search:database-connected] {
+  requestId: '80714719-47c1-4c88-890d-ee372803ba6c',
+  databaseName: 'test',
+  collectionName: 'drugs'
+}
