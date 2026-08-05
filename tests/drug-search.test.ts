@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDrugSearchText, cosineSimilarity, escapeRegex, hasSemanticFieldChanges, mergeHybridResults,
+import { buildDrugSearchText, buildLexicalSearchTerms, cosineSimilarity, escapeRegex, hasSemanticFieldChanges, mergeHybridResults,
   normalizeSearchQuery, shouldRunSemanticSearch, stripEmbeddingFields, validateEmbedding,
   withSemanticFallback } from "../lib/drug-search";
 
@@ -10,6 +10,10 @@ test("search text uses semantic fields and excludes inventory fields", () => {
 });
 test("regex escaping and query normalization", () => {
   assert.equal(escapeRegex("a+b?"), "a\\+b\\?"); assert.equal(normalizeSearchQuery("  pain   relief "), "pain relief");
+});
+test("lexical fallback extracts useful words from natural-language searches", () => {
+  assert.deepEqual(buildLexicalSearchTerms("medicine for headache"), ["medicine for headache", "headache"]);
+  assert.deepEqual(buildLexicalSearchTerms("  FOR the medicine  "), ["FOR the medicine"]);
 });
 test("hybrid merge removes duplicates and keeps exact priority", () => {
   const exact = { _id: "1", matchType: "exact" as const };

@@ -78,6 +78,22 @@ export function normalizeSearchQuery(value: string): string {
   return value.trim().replace(/\s+/g, " ").slice(0, 200);
 }
 
+const LEXICAL_STOP_WORDS = new Set([
+  "a", "an", "and", "for", "in", "medicine", "medicines", "medication",
+  "of", "on", "or", "the", "to", "with",
+]);
+
+export function buildLexicalSearchTerms(value: string): string[] {
+  const query = normalizeSearchQuery(value);
+  if (!query) return [];
+
+  const usefulWords = query
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter((word) => word.length >= 2 && !LEXICAL_STOP_WORDS.has(word.toLocaleLowerCase()));
+
+  return [...new Set([query, ...usefulWords])];
+}
+
 export function shouldRunSemanticSearch(query: string, lexicalCount: number, limit: number): boolean {
   return normalizeSearchQuery(query).length >= 2 && lexicalCount < limit;
 }

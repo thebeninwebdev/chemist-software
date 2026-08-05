@@ -1,7 +1,7 @@
 import { MongoServerError } from "mongodb";
 import { NextResponse } from "next/server";
 import { ZodError, z } from "zod";
-import { buildDrugSearchText, cosineSimilarity, EMBEDDING_DIMENSIONS, EMBEDDING_MODEL, escapeRegex, mergeHybridResults, normalizeSearchQuery, shouldRunSemanticSearch, stripEmbeddingFields, type SearchResult } from "@/lib/drug-search";
+import { buildDrugSearchText, buildLexicalSearchTerms, cosineSimilarity, EMBEDDING_DIMENSIONS, EMBEDDING_MODEL, escapeRegex, mergeHybridResults, normalizeSearchQuery, shouldRunSemanticSearch, stripEmbeddingFields, type SearchResult } from "@/lib/drug-search";
 import { embedDrugDocument, embedSearchQuery } from "@/lib/server/embeddings";
 import { connectToDatabase } from "@/lib/mongodb";
 import DrugModel from "@/models/drug";
@@ -11,9 +11,15 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
-const VECTOR_INDEX_NAME = "drug_semantic_search";
-const SEMANTIC_SCORE_MIN = Number(process.env.DRUG_SEMANTIC_SCORE_MIN ?? 0.6);
-const LOCAL_VECTOR_CANDIDATE_LIMIT = Number(process.env.LOCAL_VECTOR_CANDIDATE_LIMIT ?? 2_000);
+const VECTOR_INDEX_NAME = process.env.ATLAS_VECTOR_INDEX_NAME ?? "drug_semantic_search";
+
+function positiveNumber(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+const SEMANTIC_SCORE_MIN = positiveNumber(process.env.DRUG_SEMANTIC_SCORE_MIN, 0.6);
+const LOCAL_VECTOR_CANDIDATE_LIMIT = Math.floor(positiveNumber(process.env.LOCAL_VECTOR_CANDIDATE_LIMIT, 2_000));
 const publicDrug = (drug: Record<string, unknown>) => stripEmbeddingFields(drug);
 
 function errorDetails(error: unknown) {
@@ -28,24 +34,39 @@ function responseHeaders(requestId: string) {
   return { "Cache-Control": "no-store", "X-Request-Id": requestId };
 }
 
-async function localVectorSearch(baseFilter: Record<string, unknown>, queryVector: number[], limit: number): Promise<SearchResult[]> {
+type LocalVectorSearchResult = {
+  results: SearchResult[];
+  candidateCount: number;
+  validEmbeddingCount: number;
+  topScore: number | null;
+};
+
+async function localVectorSearch(baseFilter: Record<string, unknown>, queryVector: number[], limit: number): Promise<LocalVectorSearchResult> {
   const candidates = await DrugModel.find({ ...baseFilter, embedding: { $exists: true } })
     .select("+embedding")
     .limit(LOCAL_VECTOR_CANDIDATE_LIMIT)
     .lean();
-  return candidates
+  let validEmbeddingCount = 0;
+  const scored = candidates
     .map((drug) => {
       const record = drug as unknown as Record<string, unknown>;
       const embedding = record.embedding;
-      const semanticScore = Array.isArray(embedding) && embedding.length === EMBEDDING_DIMENSIONS
-        ? cosineSimilarity(queryVector, embedding as number[])
-        : 0;
+      const validEmbedding = Array.isArray(embedding) && embedding.length === EMBEDDING_DIMENSIONS &&
+        embedding.every((value) => typeof value === "number" && Number.isFinite(value));
+      if (validEmbedding) validEmbeddingCount++;
+      const semanticScore = validEmbedding ? cosineSimilarity(queryVector, embedding as number[]) : 0;
       return { ...record, semanticScore, matchType: "semantic" as const } as unknown as SearchResult;
     })
-    .filter((drug) => Number(drug.semanticScore) >= SEMANTIC_SCORE_MIN)
-    .sort((left, right) => Number(right.semanticScore) - Number(left.semanticScore))
-    .slice(0, limit)
-    .map((drug) => stripEmbeddingFields(drug) as SearchResult);
+    .sort((left, right) => Number(right.semanticScore) - Number(left.semanticScore));
+  return {
+    results: scored
+      .filter((drug) => Number(drug.semanticScore) >= SEMANTIC_SCORE_MIN)
+      .slice(0, limit)
+      .map((drug) => stripEmbeddingFields(drug) as SearchResult),
+    candidateCount: candidates.length,
+    validEmbeddingCount,
+    topScore: validEmbeddingCount > 0 ? Number(scored[0]?.semanticScore ?? 0) : null,
+  };
 }
 
 export async function GET(request: Request) {
@@ -73,10 +94,14 @@ export async function GET(request: Request) {
     const escaped = escapeRegex(term);
     const exact = new RegExp(`^${escaped}$`, "i");
     const prefix = new RegExp(`^${escaped}`, "i");
-    const keyword = new RegExp(escaped, "i");
+    const lexicalFields = ["name", "commonName", "description", "category", "strength", "searchText"];
+    const lexicalMatchers = buildLexicalSearchTerms(term).flatMap((searchTerm) => {
+      const regex = new RegExp(escapeRegex(searchTerm), "i");
+      return lexicalFields.map((field) => ({ [field]: regex }));
+    });
     const fetchLimit = Math.min(query.page * query.limit, 100);
     const lexical = await DrugModel.aggregate<SearchResult>([
-      { $match: { ...baseFilter, $or: [{ name: keyword }, { commonName: keyword }, { aliases: keyword }, { description: keyword }, { category: keyword }, { strength: keyword }] } },
+      { $match: { ...baseFilter, $or: lexicalMatchers } },
       { $addFields: { _matchRank: { $switch: { branches: [
         { case: { $regexMatch: { input: "$name", regex: exact } }, then: 1 },
         { case: { $regexMatch: { input: { $ifNull: ["$commonName", ""] }, regex: exact } }, then: 2 },
@@ -93,20 +118,36 @@ export async function GET(request: Request) {
       try {
         const queryVector = await embedSearchQuery(term);
         console.info("[semantic-search:embedding-generated]", { requestId, dimensions: queryVector.length, model: EMBEDDING_MODEL });
+        let atlasCandidates: SearchResult[] = [];
+        let atlasError: unknown;
         try {
           console.info("[semantic-search:vector-query-start]", { requestId, dimensions: queryVector.length,
             indexName: VECTOR_INDEX_NAME, collectionName: DrugModel.collection.name });
-          semantic = await DrugModel.aggregate<SearchResult>([
+          atlasCandidates = await DrugModel.aggregate<SearchResult>([
             { $vectorSearch: { index: VECTOR_INDEX_NAME, path: "embedding", queryVector, numCandidates: Math.max(fetchLimit * 20, 100), limit: fetchLimit, filter: baseFilter } },
             { $set: { semanticScore: { $meta: "vectorSearchScore" }, matchType: "semantic" } },
-            { $match: { semanticScore: { $gte: SEMANTIC_SCORE_MIN } } },
             { $unset: ["embedding", "searchText", "embeddingModel", "embeddingDimensions", "embeddingUpdatedAt"] },
           ]);
-          console.info("[semantic-search:vector-query-complete]", { requestId, strategy: "atlas", resultCount: semantic.length });
         } catch (error) {
-          console.warn("[semantic-search:vector-query-fallback]", { requestId, ...errorDetails(error) });
-          semantic = await localVectorSearch(baseFilter, queryVector, fetchLimit);
-          console.info("[semantic-search:vector-query-complete]", { requestId, strategy: "local-cosine", resultCount: semantic.length });
+          atlasError = error;
+          console.warn("[semantic-search:vector-query-fallback]", { requestId, indexName: VECTOR_INDEX_NAME, ...errorDetails(error) });
+        }
+        if (atlasCandidates.length > 0) {
+          semantic = atlasCandidates.filter((drug) => Number(drug.semanticScore) >= SEMANTIC_SCORE_MIN);
+          console.info("[semantic-search:vector-query-complete]", { requestId, strategy: "atlas",
+            candidateCount: atlasCandidates.length, resultCount: semantic.length,
+            topScore: Number(atlasCandidates[0].semanticScore), minimumScore: SEMANTIC_SCORE_MIN });
+        } else {
+          if (!atlasError) console.warn("[semantic-search:empty-atlas-result-fallback]", { requestId, indexName: VECTOR_INDEX_NAME });
+          const fallback = await localVectorSearch(baseFilter, queryVector, fetchLimit);
+          semantic = fallback.results;
+          console.info("[semantic-search:vector-query-complete]", { requestId,
+            strategy: atlasError ? "local-cosine-after-atlas-error" : "local-cosine-after-empty-atlas",
+            candidateCount: fallback.candidateCount, validEmbeddingCount: fallback.validEmbeddingCount,
+            resultCount: fallback.results.length, topScore: fallback.topScore, minimumScore: SEMANTIC_SCORE_MIN });
+          if (fallback.validEmbeddingCount === 0) {
+            throw atlasError ?? new Error(`No valid ${EMBEDDING_DIMENSIONS}-dimension drug embeddings were found. Run the production embedding backfill and verify Atlas index \"${VECTOR_INDEX_NAME}\".`);
+          }
         }
       } catch (error) {
         semanticError = error;
