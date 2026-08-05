@@ -1,0 +1,9 @@
+{
+  "fields": [
+    { "type": "vector", "path": "embedding", "numDimensions": 768, "similarity": "cosine" },
+    { "type": "filter", "path": "isArchived" },
+    { "type": "filter", "path": "isAvailable" },
+    { "type": "filter", "path": "category" },
+    { "type": "filter", "path": "dosageForm" }
+  ]
+}

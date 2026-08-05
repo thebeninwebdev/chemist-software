@@ -1,12 +1,10 @@
 import Link from "next/link";
-import { Boxes, ChevronRight, ClipboardPlus, LayoutDashboard, Pill, Settings } from "lucide-react";
+import { ChevronRight, ClipboardPlus, Pill, PlusCircle } from "lucide-react";
 import { DrugForm } from "./drug-form";
 
 const navigation = [
-  { label: "Overview", href: "/admin", icon: LayoutDashboard },
-  { label: "Drugs", href: "/admin/drugs/manage", icon: Pill, active: true },
-  { label: "Inventory", href: "/admin/inventory", icon: Boxes },
-  { label: "Settings", href: "/admin/settings", icon: Settings },
+  { label: "Add new drug", href: "/admin/drugs", icon: PlusCircle, active: true },
+  { label: "Manage", href: "/admin/drugs/manage", icon: Pill },
 ];
 
 export default function AddDrugPage() {

@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode } from "react";
-import { CheckCircle2, LoaderCircle, Plus, Trash2 } from "lucide-react";
+import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { CheckCircle2, LoaderCircle, Plus, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -40,6 +40,9 @@ export function DrugForm() {
   // still pre-rendered on the server before React hydrates it in the browser.
   const [prices, setPrices] = useState<PriceRow[]>([newPrice("initial-price")]);
   const [submitting, setSubmitting] = useState(false);
+  const [generatingDescription, setGeneratingDescription] = useState(false);
+  const [description, setDescription] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   const updatePrice = (id: string, patch: Partial<PriceRow>) => setPrices((rows) => rows.map((row) => row.id === id ? { ...row, ...patch } : row));
@@ -49,6 +52,22 @@ export function DrugForm() {
     if (!next.some((row) => row.isPrimary) && next[0]) next[0] = { ...next[0], isPrimary: true };
     return next;
   });
+
+  async function generateDescription() {
+    const form = formRef.current;
+    if (!form) return;
+    const data = new FormData(form);
+    const value = (name: string) => String(data.get(name) ?? "").trim() || undefined;
+    setGeneratingDescription(true); setMessage(null);
+    try {
+      const response = await fetch("/api/drugs/generate-description", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: value("name"), commonName: value("commonName"), category: value("category"), dosageForm: value("dosageForm"), strength: value("strength"), manufacturer: value("manufacturer") }) });
+      const result = (await response.json()) as { data?: { description?: string }; message?: string };
+      if (!response.ok || !result.data?.description) throw new Error(result.message || "Unable to generate a description.");
+      setDescription(result.data.description);
+    } catch (error) {
+      setMessage({ type: "error", text: error instanceof Error ? error.message : "Unable to generate a description." });
+    } finally { setGeneratingDescription(false); }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -68,7 +87,7 @@ export function DrugForm() {
       const response = await fetch("/api/drugs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       const result = (await response.json()) as { message?: string };
       if (!response.ok) throw new Error(result.message || "Unable to add drug.");
-      form.reset(); setPrices([newPrice()]);
+      form.reset(); setPrices([newPrice()]); setDescription("");
       setMessage({ type: "success", text: result.message || "Drug added successfully." });
       window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
@@ -77,7 +96,7 @@ export function DrugForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5">
+    <form ref={formRef} onSubmit={handleSubmit} className="space-y-5">
       {message && <div role="status" className={`flex items-center gap-2 rounded-lg border px-4 py-3 text-sm ${message.type === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-red-200 bg-red-50 text-red-700"}`}>{message.type === "success" && <CheckCircle2 className="size-4" />}{message.text}</div>}
       <Card>
         <CardHeader><CardTitle>Drug information</CardTitle><CardDescription>Enter the details staff will use to identify this medicine.</CardDescription></CardHeader>
@@ -88,7 +107,7 @@ export function DrugForm() {
           <Field label="Dosage form" htmlFor="dosageForm" required><Select id="dosageForm" name="dosageForm" defaultValue="tablet" required>{dosageForms.map((form) => <option key={form} value={form}>{title(form)}</option>)}</Select></Field>
           <Field label="Strength" htmlFor="strength" hint="Include the unit, such as mg or mg/5ml."><Input id="strength" name="strength" placeholder="e.g. 500 mg" maxLength={100} /></Field>
           <Field label="Manufacturer" htmlFor="manufacturer"><Input id="manufacturer" name="manufacturer" placeholder="e.g. GSK" maxLength={150} /></Field>
-          <div className="md:col-span-2"><Field label="Description" htmlFor="description" hint="Optional notes that help staff distinguish the product."><Textarea id="description" name="description" placeholder="Brief product description..." maxLength={2000} /></Field></div>
+          <div className="md:col-span-2"><Field label="Description" htmlFor="description" hint="AI-generated text should be reviewed before saving."><Textarea id="description" name="description" value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Brief product description..." maxLength={2000} /><Button type="button" variant="outline" size="sm" onClick={() => void generateDescription()} disabled={generatingDescription}>{generatingDescription ? <LoaderCircle className="animate-spin" /> : <Sparkles />}{generatingDescription ? "Generating…" : "Generate description"}</Button></Field></div>
         </CardContent>
       </Card>
       <Card>
@@ -109,7 +128,7 @@ export function DrugForm() {
         <CardHeader><CardTitle>Inventory</CardTitle><CardDescription>Set where the item is stored and its current stock level.</CardDescription></CardHeader>
         <CardContent className="grid gap-5 md:grid-cols-2"><Field label="Storage location" htmlFor="location" required><Select id="location" name="location" defaultValue="" required><option value="" disabled>Select a location</option>{storeLocations.map((location) => <option key={location} value={location}>{location}</option>)}</Select></Field><Field label="Quantity in stock" htmlFor="quantity" required hint="Availability is set automatically from this value."><Input id="quantity" name="quantity" type="number" min="0" step="1" defaultValue="0" required /></Field></CardContent>
       </Card>
-      <div className="flex flex-col-reverse gap-3 pb-10 sm:flex-row sm:justify-end"><Button type="reset" variant="outline" onClick={() => { setPrices([newPrice()]); setMessage(null); }}>Clear form</Button><Button type="submit" className="min-w-36" disabled={submitting}>{submitting ? <><LoaderCircle className="animate-spin" /> Saving…</> : "Add drug"}</Button></div>
+      <div className="flex flex-col-reverse gap-3 pb-10 sm:flex-row sm:justify-end"><Button type="reset" variant="outline" onClick={() => { setPrices([newPrice()]); setDescription(""); setMessage(null); }}>Clear form</Button><Button type="submit" className="min-w-36" disabled={submitting}>{submitting ? <><LoaderCircle className="animate-spin" /> Saving…</> : "Add drug"}</Button></div>
     </form>
   );
 }

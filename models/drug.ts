@@ -163,6 +163,12 @@ const drugSchema = new Schema(
       default: false,
       index: true,
     },
+
+    searchText: { type: String, select: false },
+    embedding: { type: [Number], select: false },
+    embeddingModel: { type: String, select: false },
+    embeddingDimensions: { type: Number, select: false },
+    embeddingUpdatedAt: { type: Date, select: false },
   },
   {
     timestamps: true,

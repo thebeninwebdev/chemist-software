@@ -1,13 +1,11 @@
 import Link from "next/link";
-import { Boxes, LayoutDashboard, Pill, Plus, Settings } from "lucide-react";
+import { Pill, Plus, PlusCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DrugManager } from "./drug-manager";
 
 const navigation = [
-  { label: "Overview", href: "/admin", icon: LayoutDashboard },
-  { label: "Drugs", href: "/admin/drugs/manage", icon: Pill, active: true },
-  { label: "Inventory", href: "/admin/inventory", icon: Boxes },
-  { label: "Settings", href: "/admin/settings", icon: Settings },
+  { label: "Add new drug", href: "/admin/drugs", icon: PlusCircle },
+  { label: "Manage", href: "/admin/drugs/manage", icon: Pill, active: true },
 ];
 
 export default function ManageDrugsPage() {

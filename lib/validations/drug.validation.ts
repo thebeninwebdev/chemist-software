@@ -147,13 +147,13 @@ export const drugQuerySchema = z.object({
   search: z
     .string()
     .trim()
-    .max(150)
+    .max(200)
     .optional(),
 
   category: z
     .string()
     .trim()
-    .max(100)
+    .max(20)
     .optional(),
 
   dosageForm: z

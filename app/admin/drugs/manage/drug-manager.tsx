@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Archive, LoaderCircle, PackageOpen, Pencil, Plus, Search, Trash2, X } from "lucide-react";
+import { Archive, LoaderCircle, PackageOpen, Pencil, Plus, Search, Sparkles, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -101,11 +101,23 @@ function DeleteConfirmation({ target, onClose, onDeleted }: { target: { drug: Dr
 function EditDrug({ drug, onClose, onSaved }: { drug: Drug; onClose: () => void; onSaved: () => void }) {
   const [draft, setDraft] = useState(drug);
   const [saving, setSaving] = useState(false);
+  const [generatingDescription, setGeneratingDescription] = useState(false);
   const [error, setError] = useState("");
   const [deleting, setDeleting] = useState<"archive" | "permanent" | null>(null);
   const set = <K extends keyof Drug>(key: K, value: Drug[K]) => setDraft((current) => ({ ...current, [key]: value }));
   const setPrice = (index: number, patch: Partial<Price>) => setDraft((current) => ({ ...current, prices: current.prices.map((price, position) => position === index ? { ...price, ...patch } : price) }));
   const makePrimary = (index: number) => setDraft((current) => ({ ...current, prices: current.prices.map((price, position) => ({ ...price, isPrimary: position === index })) }));
+
+  async function generateDescription() {
+    setGeneratingDescription(true); setError("");
+    try {
+      const response = await fetch("/api/drugs/generate-description", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: draft.name, commonName: draft.commonName || undefined, category: draft.category, dosageForm: draft.dosageForm, strength: draft.strength || undefined, manufacturer: draft.manufacturer || undefined }) });
+      const result = (await response.json()) as { data?: { description?: string }; message?: string };
+      if (!response.ok || !result.data?.description) throw new Error(result.message || "Unable to generate a description.");
+      set("description", result.data.description);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to generate a description."); }
+    finally { setGeneratingDescription(false); }
+  }
 
   async function save(event: FormEvent) {
     event.preventDefault(); setSaving(true); setError("");
@@ -157,7 +169,7 @@ function EditDrug({ drug, onClose, onSaved }: { drug: Drug; onClose: () => void;
           <Field label="Dosage form"><Select value={draft.dosageForm} onChange={(e) => set("dosageForm", e.target.value as Drug["dosageForm"])}>{dosageForms.map((form) => <option key={form} value={form}>{label(form)}</option>)}</Select></Field>
           <Field label="Strength"><Input value={draft.strength || ""} onChange={(e) => set("strength", e.target.value)} /></Field>
           <Field label="Manufacturer"><Input value={draft.manufacturer || ""} onChange={(e) => set("manufacturer", e.target.value)} /></Field>
-          <div className="sm:col-span-2"><Field label="Description"><Textarea value={draft.description || ""} onChange={(e) => set("description", e.target.value)} /></Field></div>
+          <div className="sm:col-span-2"><Field label="Description"><Textarea value={draft.description || ""} onChange={(e) => set("description", e.target.value)} /><Button type="button" variant="outline" size="sm" onClick={() => void generateDescription()} disabled={generatingDescription}>{generatingDescription ? <LoaderCircle className="animate-spin" /> : <Sparkles />}{generatingDescription ? "Generating…" : "Generate description"}</Button></Field></div>
           <Field label="Storage location"><Select value={draft.location} onChange={(e) => set("location", e.target.value)} required>{!storeLocations.includes(draft.location as (typeof storeLocations)[number]) && <option value={draft.location}>{draft.location} (existing)</option>}{storeLocations.map((location) => <option key={location} value={location}>{location}</option>)}</Select></Field>
           <Field label="Quantity"><Input type="number" min="0" step="1" value={draft.quantity} onChange={(e) => set("quantity", Number(e.target.value))} required /></Field>
         </section>

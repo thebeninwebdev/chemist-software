@@ -5,6 +5,10 @@ import { ZodError } from "zod";
 import { connectToDatabase } from "@/lib/mongodb";
 import DrugModel from "@/models/drug";
 import { updateDrugSchema } from "@/lib/validations/drug.validation";
+import { buildDrugSearchText, EMBEDDING_DIMENSIONS, EMBEDDING_MODEL, hasSemanticFieldChanges, stripEmbeddingFields } from "@/lib/drug-search";
+import { embedDrugDocument } from "@/lib/server/embeddings";
+
+export const runtime = "nodejs";
 
 type DrugRouteContext = {
   params: Promise<{
@@ -112,13 +116,28 @@ export async function PATCH(
       );
     }
 
+    const existingDrug = await DrugModel.findOne({ _id: drugId, isArchived: false })
+      .select("+searchText +embedding +embeddingModel +embeddingDimensions +embeddingUpdatedAt").lean();
+    if (!existingDrug) {
+      return NextResponse.json({ success: false, message: "Drug not found." }, { status: 404 });
+    }
+    const update: Record<string, unknown> = { ...validatedData };
+    if (hasSemanticFieldChanges(validatedData)) {
+      const searchText = buildDrugSearchText({ ...existingDrug, ...validatedData });
+      update.searchText = searchText;
+      update.embedding = await embedDrugDocument(searchText);
+      update.embeddingModel = EMBEDDING_MODEL;
+      update.embeddingDimensions = EMBEDDING_DIMENSIONS;
+      update.embeddingUpdatedAt = new Date();
+    }
+
     const drug = await DrugModel.findOneAndUpdate(
       {
         _id: drugId,
         isArchived: false,
       },
       {
-        $set: validatedData,
+        $set: update,
       },
       {
         new: true,
@@ -141,7 +160,7 @@ export async function PATCH(
     return NextResponse.json({
       success: true,
       message: "Drug updated successfully.",
-      data: drug,
+      data: stripEmbeddingFields(drug as Record<string, unknown>),
     });
   } catch (error) {
     if (error instanceof ZodError) {
