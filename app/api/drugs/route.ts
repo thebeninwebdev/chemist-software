@@ -8,14 +8,9 @@ import DrugModel from "@/models/drug";
 import { createDrugSchema, drugQuerySchema } from "@/lib/validations/drug.validation";
 
 export const runtime = "nodejs";
-const SEMANTIC_SCORE_MIN = Number(process.env.DRUG_SEMANTIC_SCORE_MIN ?? 0.65);
+const SEMANTIC_SCORE_MIN = Number(process.env.DRUG_SEMANTIC_SCORE_MIN ?? 0.6);
 const LOCAL_VECTOR_CANDIDATE_LIMIT = Number(process.env.LOCAL_VECTOR_CANDIDATE_LIMIT ?? 2_000);
 const publicDrug = (drug: Record<string, unknown>) => stripEmbeddingFields(drug);
-
-function vectorSearchUnavailable(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return message.includes("$vectorSearch") || message.includes("AtlasCLI local deployment") || message.includes("requires additional configuration");
-}
 
 async function localVectorSearch(baseFilter: Record<string, unknown>, queryVector: number[], limit: number): Promise<SearchResult[]> {
   const candidates = await DrugModel.find({ ...baseFilter, embedding: { $exists: true } })
@@ -83,8 +78,10 @@ export async function GET(request: Request) {
             { $unset: ["embedding", "searchText", "embeddingModel", "embeddingDimensions", "embeddingUpdatedAt"] },
           ]);
         } catch (error) {
-          if (!vectorSearchUnavailable(error)) throw error;
-          console.info("Atlas Vector Search is unavailable; using local cosine similarity.");
+          console.info(
+            "Atlas Vector Search failed; using local cosine similarity.",
+            error instanceof Error ? error.message : "Unknown error",
+          );
           semantic = await localVectorSearch(baseFilter, queryVector, fetchLimit);
         }
       } catch (error) {
