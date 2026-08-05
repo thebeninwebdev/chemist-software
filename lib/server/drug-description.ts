@@ -3,8 +3,8 @@ import "server-only";
 import { GoogleGenAI } from "@google/genai";
 
 type DrugDescriptionInput = { name: string; commonName?: string; category?: string; dosageForm?: string; strength?: string; manufacturer?: string };
-const MODEL = process.env.GEMINI_DESCRIPTION_MODEL ?? "gemini-2.5-flash";
-const TIMEOUT_MS = Number(process.env.GEMINI_DESCRIPTION_TIMEOUT_MS ?? 12_000);
+const MODEL = process.env.GEMINI_DESCRIPTION_MODEL ?? "gemini-flash-latest";
+const TIMEOUT_MS = Number(process.env.GEMINI_DESCRIPTION_TIMEOUT_MS ?? 30_000);
 
 export async function generateDrugDescription(drug: DrugDescriptionInput): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -13,7 +13,9 @@ export async function generateDrugDescription(drug: DrugDescriptionInput): Promi
   const request = new GoogleGenAI({ apiKey }).models.generateContent({
     model: MODEL,
     contents: `Write one concise, factual inventory-catalogue description (40-70 words) for this medicine:\n${details}\n\nDescribe identifying information and common product classification only. Do not diagnose, recommend treatment, prescribe dosage, claim suitability, or invent missing facts. Return only the description.`,
-    config: { temperature: 0.2, maxOutputTokens: 140 },
+    // Current Flash models may use part of this allowance internally before
+    // producing visible text, so leave enough room for the requested response.
+    config: { temperature: 0.2, maxOutputTokens: 1_024 },
   });
   let timeout: ReturnType<typeof setTimeout> | undefined;
   try {
